@@ -7,7 +7,7 @@ const {
   addBook,
   updateBook,
   deleteBook,
-} = require("../controller/book-conteoller");
+} = require("../controller/book-controller");
 
 router.get("/get-books", getAllBooks);
 router.get("/get-book/:id", getSingleBook);

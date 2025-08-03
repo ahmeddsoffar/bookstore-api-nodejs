@@ -1,12 +1,36 @@
+//Security: Keeps secrets out of your source code (never push .env to GitHub).
+//Configurability: Easily switch settings for development, testing, and production.
+//Convenience: Central place to manage environment-specific variables.
 require("dotenv").config();
+
+console.log("Loaded ENV variables:");
+console.log("PORT:", process.env.PORT);
+console.log("MONGO_URI:", process.env.MONGODB_URI);
+
 const express = require("express");
+const cors = require("cors");
 const connectDB = require("./database/db");
 const bookRoutes = require("./routes/book-routes");
+const authRoutes = require("./routes/auth-routes");
+const homeRoutes = require("./routes/home-routes");
+const adminRoutes = require("./routes/admin-routes");
 
 const app = express();
 const PORT = process.env.PORT;
 
-connectDB();
+connectDB(); // function to connect to the database
+
+// Enable CORS for frontend communication
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:5174"], // Allow both possible frontend ports
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+console.log("CORS enabled for frontend communication");
 
 //When a client (like a frontend or API consumer) sends JSON data in the body of an HTTP request
 //(like in POST or PUT requests), this line allows your server to read and access that data.
@@ -14,6 +38,9 @@ connectDB();
 app.use(express.json());
 
 app.use("/api/books", bookRoutes); //da el parent route /api/books/create-book
+app.use("/api/auth", authRoutes); //da el parent route /api/auth/register
+app.use("/api/home", homeRoutes); //da el parent route /api/home/home
+app.use("/api/admin", adminRoutes); //da el parent route /api/admin/admin
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

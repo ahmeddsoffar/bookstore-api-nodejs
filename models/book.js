@@ -27,6 +27,6 @@ const BookSchema = new mongoose.Schema({
   },
 });
 
-const Book = mongoose.model("Book", BookSchema);
+const Book = mongoose.model("Book", BookSchema); // Book is the collection name while BookSchema is the schema I want to use to create the collection
 
 module.exports = Book;
