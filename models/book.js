@@ -21,7 +21,7 @@ const BookSchema = new mongoose.Schema({
   imageId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Image",
-    required: false, // Optional - books can exist without covers
+    required: true,
   },
   createdAt: {
     type: Date,
