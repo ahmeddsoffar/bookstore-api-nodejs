@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/api";
-import { Shield, Users, Activity, Database } from "lucide-react";
+import {
+  Shield,
+  Users,
+  Activity,
+  Database,
+  Image as ImageIcon,
+} from "lucide-react";
+import AdminImageManager from "../components/AdminImageManager";
 
 const Admin = () => {
   const { user } = useAuth();
@@ -213,11 +220,15 @@ const Admin = () => {
               </div>
             </div>
 
-            <div className="flex items-center p-4 border-2 border-dashed border-gray-300 rounded-lg opacity-50">
-              <Activity className="h-8 w-8 text-gray-400 mr-3" />
+            <div className="flex items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors cursor-pointer">
+              <ImageIcon className="h-8 w-8 text-green-600 mr-3" />
               <div>
-                <h3 className="font-semibold text-gray-500">System Logs</h3>
-                <p className="text-sm text-gray-400">Coming soon</p>
+                <h3 className="font-semibold text-gray-800">
+                  Image Management
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Upload and manage images
+                </p>
               </div>
             </div>
           </div>
@@ -256,6 +267,11 @@ const Admin = () => {
               <p className="text-green-600 font-semibold">Active</p>
             </div>
           </div>
+        </div>
+
+        {/* Image Management Section */}
+        <div className="mt-8">
+          <AdminImageManager />
         </div>
       </div>
     </div>

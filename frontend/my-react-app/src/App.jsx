@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Books from "./pages/Books";
 import Admin from "./pages/Admin";
+import ImageGallery from "./components/ImageGallery";
 
 // Home component for the root path
 const Home = () => {
@@ -65,10 +66,10 @@ const Home = () => {
 
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h3 className="text-2xl font-semibold text-gray-800 mb-3">
-              🎨 Modern UI
+              🖼️ Image Gallery
             </h3>
             <p className="text-gray-600">
-              Responsive design with Tailwind CSS and Lucide icons
+              Upload, manage, and browse images with search functionality
             </p>
           </div>
         </div>
@@ -124,6 +125,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Books />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/gallery"
+              element={
+                <ProtectedRoute>
+                  <ImageGallery />
                 </ProtectedRoute>
               }
             />
