@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Books from "./pages/Books";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 import ImageGallery from "./components/ImageGallery";
 
 // Home component for the root path
@@ -134,6 +135,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ImageGallery />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               }
             />

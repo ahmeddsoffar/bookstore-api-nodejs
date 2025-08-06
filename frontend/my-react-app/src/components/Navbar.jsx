@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { LogOut, Book, Home, Shield, Image } from "lucide-react";
+import { LogOut, Book, Home, Shield, Image, User } from "lucide-react";
 
 const Navbar = () => {
   const { user, logout, isAuthenticated, isAdmin } = useAuth();
@@ -49,6 +49,16 @@ const Navbar = () => {
                 >
                   <Image className="h-4 w-4" />
                   Gallery
+                </Link>
+
+                <Link
+                  to="/profile"
+                  className={`flex items-center gap-1 px-3 py-2 rounded transition-colors ${
+                    isActive("/profile") ? "bg-blue-700" : "hover:bg-blue-500"
+                  }`}
+                >
+                  <User className="h-4 w-4" />
+                  Profile
                 </Link>
 
                 {isAdmin && (

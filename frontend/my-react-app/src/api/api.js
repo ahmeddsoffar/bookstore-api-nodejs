@@ -38,4 +38,36 @@ api.interceptors.response.use(
   }
 );
 
+// API functions
+export const changePassword = async (passwordData) => {
+  try {
+    const response = await api.post("/auth/change-password", passwordData);
+    return {
+      success: true,
+      message: response.data.message || "Password changed successfully",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to change password",
+    };
+  }
+};
+
+export const changeUsername = async (usernameData) => {
+  try {
+    const response = await api.post("/auth/change-username", usernameData);
+    return {
+      success: true,
+      message: response.data.message || "Username changed successfully",
+      user: response.data.user,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to change username",
+    };
+  }
+};
+
 export default api;
