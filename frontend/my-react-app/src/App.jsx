@@ -14,7 +14,6 @@ import Dashboard from "./pages/Dashboard";
 import Books from "./pages/Books";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
-import ImageGallery from "./components/ImageGallery";
 
 // Home component for the root path
 const Home = () => {
@@ -67,10 +66,10 @@ const Home = () => {
 
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h3 className="text-2xl font-semibold text-gray-800 mb-3">
-              🖼️ Image Gallery
+              ⚙️ Profile Management
             </h3>
             <p className="text-gray-600">
-              Upload, manage, and browse images with search functionality
+              Change your username, password, and manage account settings
             </p>
           </div>
         </div>
@@ -126,15 +125,6 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Books />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/gallery"
-              element={
-                <ProtectedRoute>
-                  <ImageGallery />
                 </ProtectedRoute>
               }
             />

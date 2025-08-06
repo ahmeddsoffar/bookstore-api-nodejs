@@ -4,20 +4,41 @@ const { deleteImageFromCloudinary } = require("../helpers/cloudinary-helper");
 
 const getAllBooks = async (req, res) => {
   try {
-    // CHANGED: Added .populate() to include image data
-    const allBooks = await Book.find().populate("imageId", "imageUrl");
+    // Extract pagination parameters from query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 6; // Default to 6 books per page
+    const skip = (page - 1) * limit;
 
-    // CHANGED: Always return 200 OK, even for empty collections
+    // Get total count for pagination info
+    const totalBooks = await Book.countDocuments();
+    const totalPages = Math.ceil(totalBooks / limit);
+
+    // Fetch books with pagination and populate image data
+    const allBooks = await Book.find()
+      .populate("imageId", "imageUrl")
+      .sort({ createdAt: -1 }) // Sort by newest first
+      .skip(skip)
+      .limit(limit);
+
+    // Transform books to include coverImage field
     const booksWithCovers = allBooks.map((book) => ({
       ...book.toObject(),
-      coverImage: book.imageId?.imageUrl || null, // Add coverImage field
+      coverImage: book.imageId?.imageUrl || null,
     }));
 
     res.status(200).json({
       success: true,
       message:
         allBooks.length > 0 ? "Books fetched successfully" : "No books found",
-      books: booksWithCovers, // Send transformed books (empty array if no books)
+      books: booksWithCovers,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalBooks: totalBooks,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+        limit: limit,
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "something went wrong" });

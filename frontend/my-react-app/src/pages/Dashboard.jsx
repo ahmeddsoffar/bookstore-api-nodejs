@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import api from "../api/api";
+import { bookApi } from "../api/bookApi";
 import { Home, Book, Users, Activity } from "lucide-react";
 
 const Dashboard = () => {
@@ -27,9 +27,9 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await api.get("/books/get-books");
+      const totalBooks = await bookApi.getBooksCount();
       setStats({
-        totalBooks: response.data.books ? response.data.books.length : 0,
+        totalBooks: totalBooks,
         loading: false,
       });
     } catch (error) {

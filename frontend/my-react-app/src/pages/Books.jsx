@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../api/api";
+import { bookApi } from "../api/bookApi";
 import { imageApi } from "../api/imageApi";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -17,7 +17,11 @@ const Books = () => {
   const { isAdmin } = useAuth();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [totalBooks, setTotalBooks] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("add"); // 'add', 'edit', 'view'
   const [selectedBook, setSelectedBook] = useState(null);
@@ -32,19 +36,58 @@ const Books = () => {
   const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
-    fetchBooks();
+    fetchBooks(1, true); // Initial load
   }, []);
 
-  const fetchBooks = async () => {
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + document.documentElement.scrollTop >=
+        document.documentElement.offsetHeight - 1000 // Load more when 1000px from bottom
+      ) {
+        if (hasNextPage && !loadingMore && !loading) {
+          loadMoreBooks();
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [hasNextPage, loadingMore, loading, currentPage]);
+
+  const fetchBooks = async (page = 1, isInitial = false) => {
     try {
-      setLoading(true);
-      const response = await api.get("/books/get-books");
-      setBooks(response.data.books || []);
+      if (isInitial) {
+        setLoading(true);
+        setBooks([]);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const response = await bookApi.getBooks(page, 6);
+      const { books: newBooks, pagination } = response;
+
+      if (isInitial) {
+        setBooks(newBooks || []);
+      } else {
+        setBooks((prevBooks) => [...prevBooks, ...(newBooks || [])]);
+      }
+
+      setCurrentPage(pagination.currentPage);
+      setHasNextPage(pagination.hasNextPage);
+      setTotalBooks(pagination.totalBooks);
     } catch (error) {
       setError("Failed to fetch books");
       console.error("Error:", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreBooks = async () => {
+    if (hasNextPage && !loadingMore) {
+      await fetchBooks(currentPage + 1, false);
     }
   };
 
@@ -87,13 +130,13 @@ const Books = () => {
       };
 
       if (modalType === "add") {
-        await api.post("/books/create-book", bookData);
+        await bookApi.createBook(bookData);
       } else if (modalType === "edit") {
-        await api.put(`/books/update-book/${selectedBook._id}`, bookData);
+        await bookApi.updateBook(selectedBook._id, bookData);
       }
 
       closeModal();
-      fetchBooks();
+      fetchBooks(1, true); // Reload from first page
     } catch (error) {
       setError(error.response?.data?.message || "Operation failed");
       setUploadingImage(false);
@@ -106,8 +149,8 @@ const Books = () => {
     }
 
     try {
-      await api.delete(`/books/delete-book/${bookId}`);
-      fetchBooks();
+      await bookApi.deleteBook(bookId);
+      fetchBooks(1, true); // Reload from first page
     } catch (error) {
       setError(error.response?.data?.message || "Failed to delete book");
     }
@@ -212,9 +255,16 @@ const Books = () => {
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-3">
             <Book className="h-8 w-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-800">
-              {isAdmin ? "Books Management" : "Books Collection"}
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">
+                {isAdmin ? "Books Management" : "Books Collection"}
+              </h1>
+              {totalBooks > 0 && (
+                <p className="text-sm text-gray-600 mt-1">
+                  Showing {books.length} of {totalBooks} books
+                </p>
+              )}
+            </div>
           </div>
           {isAdmin && (
             <button
@@ -255,70 +305,107 @@ const Books = () => {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {books.map((book) => (
-              <div
-                key={book._id}
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
-              >
-                {/* Book Cover */}
-                <div className="h-48 bg-gray-100 flex items-center justify-center">
-                  {book.coverImage ? (
-                    <img
-                      src={book.coverImage}
-                      alt={`${book.title} cover`}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <Book className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">No Cover</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-6">
-                  <div className="mb-4">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                      {book.title}
-                    </h3>
-                    <p className="text-gray-600 mb-1">by {book.author}</p>
-                    <p className="text-sm text-gray-500">
-                      Published: {book.year}
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end space-x-2 mt-4">
-                    <button
-                      onClick={() => openModal("view", book)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                      title="View Details"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                    {isAdmin && (
-                      <>
-                        <button
-                          onClick={() => openModal("edit", book)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                          title="Edit Book"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(book._id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Delete Book"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {books.map((book) => (
+                <div
+                  key={book._id}
+                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+                >
+                  {/* Book Cover */}
+                  <div className="h-48 bg-gray-100 flex items-center justify-center">
+                    {book.coverImage ? (
+                      <img
+                        src={book.coverImage}
+                        alt={`${book.title} cover`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <Book className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No Cover</p>
+                      </div>
                     )}
                   </div>
+
+                  <div className="p-6">
+                    <div className="mb-4">
+                      <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                        {book.title}
+                      </h3>
+                      <p className="text-gray-600 mb-1">by {book.author}</p>
+                      <p className="text-sm text-gray-500">
+                        Published: {book.year}
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end space-x-2 mt-4">
+                      <button
+                        onClick={() => openModal("view", book)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                        title="View Details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      {isAdmin && (
+                        <>
+                          <button
+                            onClick={() => openModal("edit", book)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                            title="Edit Book"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(book._id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            title="Delete Book"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Loading More Indicator */}
+            {loadingMore && (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="ml-2 text-gray-600">
+                  Loading more books...
+                </span>
               </div>
-            ))}
-          </div>
+            )}
+
+            {/* Load More Button (fallback) */}
+            {hasNextPage && !loadingMore && books.length > 0 && (
+              <div className="flex justify-center py-8">
+                <button
+                  onClick={loadMoreBooks}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Load More Books
+                </button>
+              </div>
+            )}
+
+            {/* End of Results */}
+            {!hasNextPage && books.length > 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  You've reached the end of the collection!
+                </p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Showing all {totalBooks} books
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         {/* Modal */}
