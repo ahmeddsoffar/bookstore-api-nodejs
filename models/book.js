@@ -18,6 +18,11 @@ const BookSchema = new mongoose.Schema({
     min: [1000, "Year must be greater than 1000"],
     max: [new Date().getFullYear(), "Year cannot be in the future"],
   },
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Category",
+    required: false,
+  },
   imageId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Image",

@@ -6,6 +6,7 @@ require("dotenv").config();
 const Book = require("../models/book");
 const ImageModel = require("../models/image");
 const User = require("../models/User");
+const Category = require("../models/category");
 
 const connectDB = async () => {
   try {
@@ -41,8 +42,29 @@ const createPlaceholderImages = async (adminUserId, count = 25) => {
   return savedImages.map((img) => img._id);
 };
 
+// Create default categories
+const createDefaultCategories = async () => {
+  const defaults = [
+    { name: "Fiction" },
+    { name: "Non-Fiction" },
+    { name: "Science" },
+    { name: "History" },
+    { name: "Fantasy" },
+    { name: "Technology" },
+  ];
+  const existing = await Category.find({
+    name: { $in: defaults.map((d) => d.name) },
+  });
+  if (existing.length === defaults.length) {
+    return existing;
+  }
+  await Category.deleteMany({});
+  const created = await Category.insertMany(defaults);
+  return created;
+};
+
 // Generate realistic book data
-const generateBookData = (imageIds) => {
+const generateBookData = (imageIds, categories) => {
   const books = [];
   const currentYear = new Date().getFullYear();
 
@@ -60,7 +82,7 @@ const generateBookData = (imageIds) => {
     { title: "The Crystal Keys", author: "Maya Johansson" },
   ];
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 10; i++) {
     // Use predefined templates for first 10, then generate random ones
     let title, author;
 
@@ -90,6 +112,7 @@ const generateBookData = (imageIds) => {
         })
         .getFullYear(),
       imageId: faker.helpers.arrayElement(imageIds),
+      categoryId: faker.helpers.arrayElement(categories.map((c) => c._id)),
     };
 
     books.push(book);
@@ -130,15 +153,21 @@ const seedDatabase = async () => {
     console.log("🧹 Cleaning existing seed data...");
     await Book.deleteMany({});
     await ImageModel.deleteMany({ publicId: { $regex: /^seed_/ } });
+    await Category.deleteMany({});
     console.log("✅ Cleaned existing data\n");
 
     // Create placeholder images
     const imageIds = await createPlaceholderImages(adminUser._id, 25);
     console.log("");
 
+    // Create default categories
+    console.log("🏷️ Creating default categories...");
+    const categories = await createDefaultCategories();
+    console.log(`✅ Created ${categories.length} categories`);
+
     // Generate and insert book data
     console.log("📚 Creating 20 fake books...");
-    const booksData = generateBookData(imageIds);
+    const booksData = generateBookData(imageIds, categories);
     const createdBooks = await Book.insertMany(booksData);
 
     console.log("✅ Successfully created books:\n");
@@ -152,6 +181,7 @@ const seedDatabase = async () => {
     console.log(`📊 Summary:`);
     console.log(`   • ${createdBooks.length} books created`);
     console.log(`   • ${imageIds.length} placeholder images created`);
+    console.log(`   • ${categories.length} categories created`);
     console.log(`   • Admin user: admin@bookstore.com (password: admin123)`);
     console.log(`\n💡 You can now test your pagination with real data!`);
   } catch (error) {

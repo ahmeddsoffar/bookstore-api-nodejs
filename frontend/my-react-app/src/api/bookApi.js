@@ -4,10 +4,9 @@ import api from "./api";
 
 export const bookApi = {
   // Get paginated books list
-  getBooks: async (page = 1, limit = 6) => {
-    const response = await api.get(
-      `/books/get-books?page=${page}&limit=${limit}`
-    );
+  getBooks: async (page = 1, limit = 6, params = {}) => {
+    const query = new URLSearchParams({ page, limit, ...params }).toString();
+    const response = await api.get(`/books/get-books?${query}`);
     return response.data;
   },
 

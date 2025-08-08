@@ -11,30 +11,18 @@ console.log("CLOUDINARY_API_KEY:", process.env.CLOUDINARY_API_KEY);
 console.log("CLOUDINARY_API_SECRET:", process.env.CLOUDINARY_API_SECRET);
 
 const express = require("express");
-const cors = require("cors");
 const connectDB = require("./database/db");
 const bookRoutes = require("./routes/book-routes");
 const authRoutes = require("./routes/auth-routes");
 const homeRoutes = require("./routes/home-routes");
 const adminRoutes = require("./routes/admin-routes");
 const uploadImageRoutes = require("./routes/image-routes");
+const categoryRoutes = require("./routes/category-routes");
 
 const app = express();
 const PORT = process.env.PORT;
 
 connectDB(); // function to connect to the database
-
-// Enable CORS for frontend communication
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"], // Allow both possible frontend ports
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-console.log("CORS enabled for frontend communication");
 
 //When a client (like a frontend or API consumer) sends JSON data in the body of an HTTP request
 //(like in POST or PUT requests), this line allows your server to read and access that data.
@@ -46,6 +34,7 @@ app.use("/api/auth", authRoutes); //da el parent route /api/auth/register
 app.use("/api/home", homeRoutes); //da el parent route /api/home/home
 app.use("/api/admin", adminRoutes); //da el parent route /api/admin/admin
 app.use("/api/image", uploadImageRoutes); //da el parent route /api/image/upload
+app.use("/api/categories", categoryRoutes); // categories endpoints
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { bookApi } from "../api/bookApi";
+import { categoryApi } from "../api/categoryApi";
 import { imageApi } from "../api/imageApi";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -15,6 +17,7 @@ import {
 
 const Books = () => {
   const { isAdmin } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -30,14 +33,53 @@ const Books = () => {
     author: "",
     year: "",
     imageId: "",
+    categoryId: "",
   });
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({
+    open: false,
+    bookId: null,
+    bookTitle: "",
+  });
+  const [activeCategory, setActiveCategory] = useState("");
+  const [activeCategorySlug, setActiveCategorySlug] = useState("");
 
   useEffect(() => {
-    fetchBooks(1, true); // Initial load
+    loadCategories();
   }, []);
+
+  // Initialize from URL on mount and whenever search params change
+  useEffect(() => {
+    const slugFromUrl = searchParams.get("category") || "";
+    setActiveCategorySlug(slugFromUrl);
+  }, [searchParams]);
+
+  // Resolve slug to id and fetch when categories or slug change
+  useEffect(() => {
+    if (!categories.length) return;
+    if (!activeCategorySlug) {
+      setActiveCategory("");
+      fetchBooks(1, true);
+      return;
+    }
+    const match = categories.find((c) => c.slug === activeCategorySlug);
+    setActiveCategory(match ? match._id : "");
+    fetchBooks(1, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, activeCategorySlug]);
+  const loadCategories = async () => {
+    try {
+      const list = await categoryApi.getCategories();
+      setCategories(list);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -64,7 +106,9 @@ const Books = () => {
         setLoadingMore(true);
       }
 
-      const response = await bookApi.getBooks(page, 6);
+      const response = await bookApi.getBooks(page, 6, {
+        ...(activeCategorySlug ? { category: activeCategorySlug } : {}),
+      });
       const { books: newBooks, pagination } = response;
 
       if (isInitial) {
@@ -144,16 +188,22 @@ const Books = () => {
   };
 
   const handleDelete = async (bookId) => {
-    if (!window.confirm("Are you sure you want to delete this book?")) {
-      return;
-    }
-
     try {
       await bookApi.deleteBook(bookId);
-      fetchBooks(1, true); // Reload from first page
+      setConfirmDelete({ open: false, bookId: null, bookTitle: "" });
+      fetchBooks(1, true);
     } catch (error) {
       setError(error.response?.data?.message || "Failed to delete book");
+      setConfirmDelete({ open: false, bookId: null, bookTitle: "" });
     }
+  };
+
+  const openConfirmDelete = (bookId, bookTitle) => {
+    setConfirmDelete({ open: true, bookId, bookTitle });
+  };
+
+  const closeConfirmDelete = () => {
+    setConfirmDelete({ open: false, bookId: null, bookTitle: "" });
   };
 
   const openModal = (type, book = null) => {
@@ -161,14 +211,23 @@ const Books = () => {
     setSelectedBook(book);
 
     if (type === "add") {
-      setFormData({ title: "", author: "", year: "", imageId: "" });
+      setFormData({
+        title: "",
+        author: "",
+        year: "",
+        imageId: "",
+        categoryId: "",
+      });
       setPreviewImage(null);
     } else if (type === "edit" && book) {
       setFormData({
         title: book.title,
         author: book.author,
         year: book.year.toString(),
-        imageId: book.imageId || "",
+        // Ensure we only keep the image ObjectId, not the populated object
+        imageId: (book.imageId && (book.imageId._id || book.imageId)) || "",
+        categoryId:
+          (book.categoryId && (book.categoryId._id || book.categoryId)) || "",
       });
       setPreviewImage(book.coverImage || null);
     }
@@ -181,7 +240,13 @@ const Books = () => {
   const closeModal = () => {
     setShowModal(false);
     setSelectedBook(null);
-    setFormData({ title: "", author: "", year: "", imageId: "" });
+    setFormData({
+      title: "",
+      author: "",
+      year: "",
+      imageId: "",
+      categoryId: "",
+    });
     setSelectedImage(null);
     setPreviewImage(null);
     setUploadingImage(false);
@@ -283,130 +348,192 @@ const Books = () => {
           </div>
         )}
 
-        {/* Books Grid */}
-        {books.length === 0 ? (
-          <div className="text-center py-12">
-            <Book className="h-24 w-24 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-semibold text-gray-600 mb-2">
-              No books found
-            </h2>
-            <p className="text-gray-500 mb-4">
-              {isAdmin
-                ? "Start by adding your first book to the collection."
-                : "No books are available in the collection yet."}
-            </p>
-            {isAdmin && (
-              <button
-                onClick={() => openModal("add")}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Add Your First Book
-              </button>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <aside className="md:col-span-3 lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                Filter by Category
+              </h3>
+              <div className="space-y-1">
+                <button
+                  onClick={() => {
+                    setActiveCategorySlug("");
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete("category");
+                      return next;
+                    });
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                    activeCategorySlug === ""
+                      ? "bg-blue-50 text-blue-700"
+                      : "hover:bg-gray-50"
+                  }`}
+                >
+                  All Categories
+                </button>
+                {categories.map((c) => (
+                  <button
+                    key={c._id}
+                    onClick={() => {
+                      setActiveCategorySlug(c.slug);
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        if (c.slug) next.set("category", c.slug);
+                        return next;
+                      });
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                      activeCategorySlug === c.slug
+                        ? "bg-blue-50 text-blue-700"
+                        : "hover:bg-gray-50"
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="md:col-span-9 lg:col-span-10">
+            {/* Books Grid */}
+            {books.length === 0 ? (
+              <div className="text-center py-12">
+                <Book className="h-24 w-24 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-semibold text-gray-600 mb-2">
+                  No books found
+                </h2>
+                <p className="text-gray-500 mb-4">
+                  {isAdmin
+                    ? "Start by adding your first book to the collection."
+                    : "No books are available in the collection yet."}
+                </p>
+                {isAdmin && (
+                  <button
+                    onClick={() => openModal("add")}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Add Your First Book
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {books.map((book) => (
+                    <div
+                      key={book._id}
+                      className="group bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+                    >
+                      {/* Book Cover */}
+                      <div className="relative h-72 bg-gray-100 overflow-hidden flex items-center justify-center">
+                        {book.coverImage ? (
+                          <img
+                            src={book.coverImage}
+                            alt={`${book.title} cover`}
+                            className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="text-center">
+                            <Book className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No Cover</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-5">
+                        <div className="mb-3">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-1 line-clamp-2">
+                            {book.title}
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            by {book.author}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Published: {book.year}
+                          </p>
+                          {book.categoryId && (
+                            <p className="text-xs mt-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                {book.categoryId.name || "Category"}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end space-x-2 mt-3">
+                          <button
+                            onClick={() => openModal("view", book)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => openModal("edit", book)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                title="Edit Book"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  openConfirmDelete(book._id, book.title)
+                                }
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                title="Delete Book"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Loading More Indicator */}
+                {loadingMore && (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span className="ml-2 text-gray-600">
+                      Loading more books...
+                    </span>
+                  </div>
+                )}
+
+                {/* Load More Button (fallback) */}
+                {hasNextPage && !loadingMore && books.length > 0 && (
+                  <div className="flex justify-center py-8">
+                    <button
+                      onClick={loadMoreBooks}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Load More Books
+                    </button>
+                  </div>
+                )}
+
+                {/* End of Results */}
+                {!hasNextPage && books.length > 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">
+                      You've reached the end of the collection!
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Showing all {totalBooks} books
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {books.map((book) => (
-                <div
-                  key={book._id}
-                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
-                >
-                  {/* Book Cover */}
-                  <div className="h-48 bg-gray-100 flex items-center justify-center">
-                    {book.coverImage ? (
-                      <img
-                        src={book.coverImage}
-                        alt={`${book.title} cover`}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center">
-                        <Book className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500">No Cover</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-6">
-                    <div className="mb-4">
-                      <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                        {book.title}
-                      </h3>
-                      <p className="text-gray-600 mb-1">by {book.author}</p>
-                      <p className="text-sm text-gray-500">
-                        Published: {book.year}
-                      </p>
-                    </div>
-
-                    <div className="flex justify-end space-x-2 mt-4">
-                      <button
-                        onClick={() => openModal("view", book)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      {isAdmin && (
-                        <>
-                          <button
-                            onClick={() => openModal("edit", book)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                            title="Edit Book"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(book._id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                            title="Delete Book"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Loading More Indicator */}
-            {loadingMore && (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                <span className="ml-2 text-gray-600">
-                  Loading more books...
-                </span>
-              </div>
-            )}
-
-            {/* Load More Button (fallback) */}
-            {hasNextPage && !loadingMore && books.length > 0 && (
-              <div className="flex justify-center py-8">
-                <button
-                  onClick={loadMoreBooks}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Load More Books
-                </button>
-              </div>
-            )}
-
-            {/* End of Results */}
-            {!hasNextPage && books.length > 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">
-                  You've reached the end of the collection!
-                </p>
-                <p className="text-sm text-gray-400 mt-1">
-                  Showing all {totalBooks} books
-                </p>
-              </div>
-            )}
-          </>
-        )}
+        </div>
 
         {/* Modal */}
         {showModal && (
@@ -472,6 +599,16 @@ const Books = () => {
                       {selectedBook.year}
                     </p>
                   </div>
+                  {selectedBook.categoryId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600">
+                        Category
+                      </label>
+                      <p className="text-gray-900 font-semibold">
+                        {selectedBook.categoryId.name}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-600">
                       Created
@@ -538,6 +675,81 @@ const Books = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter publication year"
                     />
+                  </div>
+
+                  {/* Category Select */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Category
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        name="categoryId"
+                        value={formData.categoryId}
+                        onChange={handleInputChange}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Uncategorized</option>
+                        {categories.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setAddingCategory(true)}
+                          className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                        >
+                          + New
+                        </button>
+                      )}
+                    </div>
+                    {addingCategory && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="New category name"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                          onClick={async () => {
+                            if (!newCategoryName.trim()) return;
+                            try {
+                              const created = await categoryApi.createCategory({
+                                name: newCategoryName.trim(),
+                              });
+                              setNewCategoryName("");
+                              setAddingCategory(false);
+                              await loadCategories();
+                              setFormData((prev) => ({
+                                ...prev,
+                                categoryId: created._id,
+                              }));
+                            } catch (e) {
+                              // ignore
+                            }
+                          }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                          onClick={() => {
+                            setNewCategoryName("");
+                            setAddingCategory(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Book Cover Upload */}
@@ -630,6 +842,45 @@ const Books = () => {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {confirmDelete.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black bg-opacity-40"
+              onClick={closeConfirmDelete}
+            />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-sm w-full p-5">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-full text-red-600">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    Delete book?
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    This will permanently delete "{confirmDelete.bookTitle}" and
+                    its cover image. This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  onClick={closeConfirmDelete}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDelete(confirmDelete.bookId)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         )}

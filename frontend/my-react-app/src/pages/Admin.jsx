@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import AdminImageManager from "../components/AdminImageManager";
+import AdminCategoryManager from "../components/AdminCategoryManager";
 
 const Admin = () => {
   const { user } = useAuth();
@@ -269,8 +270,9 @@ const Admin = () => {
           </div>
         </div>
 
-        {/* Image Management Section */}
-        <div className="mt-8">
+        {/* Categories & Image Management Section */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <AdminCategoryManager />
           <AdminImageManager />
         </div>
       </div>

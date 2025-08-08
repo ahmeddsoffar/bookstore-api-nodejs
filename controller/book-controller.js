@@ -1,21 +1,49 @@
 const Book = require("../models/book");
 const ImageModel = require("../models/image");
 const { deleteImageFromCloudinary } = require("../helpers/cloudinary-helper");
+const Category = require("../models/category");
 
 const getAllBooks = async (req, res) => {
   try {
     // Extract pagination parameters from query
-    const page = parseInt(req.query.page) || 1;
+    const page = parseInt(req.query.page) || 1; // Default to 1st page
     const limit = parseInt(req.query.limit) || 6; // Default to 6 books per page
     const skip = (page - 1) * limit;
 
-    // Get total count for pagination info
-    const totalBooks = await Book.countDocuments();
+    // Build filter by category if provided (supports id or slug via `category`)
+    const { categoryId, category } = req.query;
+    const filter = {};
+    if (category) {
+      // If a slug is provided, resolve it to an ObjectId first
+      const categoryDoc = await Category.findOne({ slug: category });
+      if (!categoryDoc) {
+        return res.status(200).json({
+          success: true,
+          message: "No books found",
+          books: [],
+          pagination: {
+            currentPage: page,
+            totalPages: 0,
+            totalBooks: 0,
+            hasNextPage: false,
+            hasPrevPage: page > 1,
+            limit: limit,
+          },
+        });
+      }
+      filter.categoryId = categoryDoc._id;
+    } else if (categoryId) {
+      filter.categoryId = categoryId;
+    }
+
+    // Get total count for pagination info based on filter
+    const totalBooks = await Book.countDocuments(filter);
     const totalPages = Math.ceil(totalBooks / limit);
 
     // Fetch books with pagination and populate image data
-    const allBooks = await Book.find()
+    const allBooks = await Book.find(filter)
       .populate("imageId", "imageUrl")
+      .populate("categoryId", "name slug")
       .sort({ createdAt: -1 }) // Sort by newest first
       .skip(skip)
       .limit(limit);
@@ -49,10 +77,9 @@ const getSingleBook = async (req, res) => {
   try {
     const getCurrentBookId = req.params.id;
     // CHANGED: Added .populate() to include image data
-    const book = await Book.findById(getCurrentBookId).populate(
-      "imageId",
-      "imageUrl"
-    );
+    const book = await Book.findById(getCurrentBookId)
+      .populate("imageId", "imageUrl")
+      .populate("categoryId", "name slug");
 
     if (book) {
       // CHANGED: Transform book to include coverImage URL for frontend
@@ -77,6 +104,17 @@ const getSingleBook = async (req, res) => {
 const addBook = async (req, res) => {
   try {
     const newBookFormData = req.body;
+    // Validate category if provided
+    if (newBookFormData.categoryId) {
+      const categoryExists = await Category.findById(
+        newBookFormData.categoryId
+      );
+      if (!categoryExists) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid category selected" });
+      }
+    }
     const newlyCreatedBook = await Book.create(newBookFormData);
     if (newlyCreatedBook) {
       res.status(201).json({
@@ -106,7 +144,8 @@ const updateBook = async (req, res) => {
     // Check if image is being changed
     const isImageChanging =
       updatedBookFormData.imageId &&
-      updatedBookFormData.imageId !== currentBook.imageId?.toString();
+      updatedBookFormData.imageId.toString() !==
+        currentBook.imageId?.toString();
 
     // If image is changing, delete the old image from Cloudinary and database
     if (isImageChanging && currentBook.imageId) {
@@ -122,13 +161,27 @@ const updateBook = async (req, res) => {
       }
     }
 
+    // Validate category if provided
+    if (updatedBookFormData.categoryId) {
+      const categoryExists = await Category.findById(
+        updatedBookFormData.categoryId
+      );
+      if (!categoryExists) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid category selected" });
+      }
+    }
+
     const updatedBook = await Book.findByIdAndUpdate(
       getCurrentBookId,
       updatedBookFormData,
       {
         new: true,
       }
-    ).populate("imageId", "imageUrl");
+    )
+      .populate("imageId", "imageUrl")
+      .populate("categoryId", "name slug");
 
     if (updatedBook) {
       // Transform book to include coverImage URL for frontend
